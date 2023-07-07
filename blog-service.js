@@ -35,15 +35,21 @@ module.exports.getAllPosts = () => {
     })
 }
 
-// Returns array of all posts that have a published status 
 module.exports.getPublishedPosts = () => {
     return new Promise((resolve, reject) => {
-        if(posts.length == 0){
-            reject("No data")
+        let publishedPosts = [];
+        posts.forEach((post) => {
+            if (post.published === true) {
+                publishedPosts.push(post);
+            }
+        })
+
+        if (publishedPosts.length > 0) {
+            resolve(publishedPosts);
+        } else {
+            reject("no data");
         }
-        filteredPosts = posts.filter(post => post.published === true)
-        resolve(filteredPosts)
-    })
+    })    
 }
 
 //Returns array of all categories 
@@ -56,6 +62,7 @@ module.exports.getCategories = () => {
         resolve(categories)     
     })
 }
+
 //Sets next postId and pushes postData to posts array 
 module.exports.addPost = (postData) => {
     return new Promise((resolve, reject) => {
@@ -108,6 +115,18 @@ module.exports.getPostById = (id) => {
         }
         else {
             reject("no result returned");
+        }
+    })
+}
+
+module.exports.getPublishedPostsByCategory = (category) => {
+    return new Promise((resolve, reject) => {
+        const filteredPosts = posts.filter(post => post.published == true && post.category == category);
+        //If length of array is 0 show error 
+        if (filteredPosts.length >= 0) {
+            resolve(filteredPosts);
+        } else {
+            reject("no results returned");
         }
     })
 }
