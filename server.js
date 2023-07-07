@@ -6,7 +6,7 @@
  *  Name: Kelvin Nguyen
  * Student ID: 104087226 
  * Date: July 7, 2023
- * Cyclic Web App URL: https://odd-cyan-lion-hat.cyclic.app/about 
+ * Cyclic Web App URL: https://adventurous-elk-garters.cyclic.app/blog
  * GitHub Repository URL: https://github.com/KelvinJoNguyen/web322-app
  * *********************************************************************************/ 
 var express = require("express");
