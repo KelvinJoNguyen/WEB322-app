@@ -1,11 +1,11 @@
 /**********************************************************************************  
- * WEB322 – Assignment 05  I declare that this assignment is my own work in accordance 
+ * WEB322 – Assignment 06  I declare that this assignment is my own work in accordance 
  * with Seneca  Academic Policy.  No part *  of this assignment has been copied 
  * manually or electronically from any other source *  (including 3rd party web sites) 
  * or distributed to other students.* * 
  *  Name: Kelvin Nguyen
  * Student ID: 104087226 
- * Date: July 25, 2023
+ * Date: August 14, 2023
  * Cyclic Web App URL: https://adventurous-elk-garters.cyclic.app/blog
  * GitHub Repository URL: https://github.com/KelvinJoNguyen/web322-app
  * *********************************************************************************/ 
@@ -31,7 +31,11 @@ const {
   deleteCategoryById,
   deletePostById,
 } = require("./blog-service.js");
+const clientSessions = require("client-sessions");
+const authService = require("./auth-service")
 
+app.engine(".hbs", exphbs.engine({ extname: ".hbs" }));
+app.set("view engine", ".hbs");
 
 var HTTP_PORT = process.env.PORT || 8080;
 
@@ -45,6 +49,30 @@ cloudinary.config({
 });
 
 const upload = multer();
+
+app.use(express.urlencoded({ extended: true }));
+
+// session data available at req.cookieName i.e. req.session here:
+app.use(clientSessions({
+  cookieName: "session", // this is the object name that will be added to 'req'
+  secret: "WEB322_SECRET_2023", // this should be a long un-guessable string.
+  duration: 2 * 60 * 1000, // duration of the session in milliseconds (2 minutes)
+  activeDuration: 1000 * 60 // the session will be extended by this many ms each request (1 minute)
+}))
+
+app.use(function(req, res, next) {
+  res.locals.session = req.session;
+  next();
+});
+
+//Middleware function checks if user is logged in 
+function ensureLogin(req, res, next) {
+  if (!req.session.user) {
+    res.redirect("/login");
+  } else {
+    next();
+  }
+}
 
 
 // call this function after the http server starts listening for requests
@@ -167,7 +195,7 @@ app.get("/blog", async (req, res) => {
 });
 
 // Route for posts 
-app.get("/posts", (req,res) =>{
+app.get("/posts", ensureLogin, (req,res) =>{
   
       if (req.query.category) {
         getPublishedPostsByCategory(req.query.category)
@@ -220,7 +248,7 @@ app.get("/posts", (req,res) =>{
 
 //Route for categories - returns formatted json string of all categories 
 // If error occurs, error is console logged and error message is displayed 
-app.get("/categories", (req,res) =>{
+app.get("/categories", ensureLogin, (req,res) =>{
     getCategories()
       .then((data) => {
         if(data.length > 0){
@@ -239,7 +267,7 @@ app.get("/categories", (req,res) =>{
 
 
 //Add post page route
-app.get("/posts/add", (req, res) => {
+app.get("/posts/add", ensureLogin, (req, res) => {
   getCategories()
     .then((categories) => {
       res.render("addPost", { categories: categories });
@@ -251,7 +279,7 @@ app.get("/posts/add", (req, res) => {
 
 
 //Route to add posts - uploads image to hosting website and calls add post function to add new postData
-app.post("/posts/add", upload.single("featureImage"), (req, res) => {
+app.post("/posts/add",ensureLogin, upload.single("featureImage"), (req, res) => {
 let streamUpload = (req) => {
 return new Promise((resolve, reject) => {
   let stream = cloudinary.uploader.upload_stream((error, result) => {
@@ -299,7 +327,7 @@ upload(req).then((uploaded) => {
 })
 
 //Get post by value
-app.get("/post/value", (req, res) => {
+app.get("/post/value",ensureLogin, (req, res) => {
   getPostById(req.params.value)
   .then((data) => {
     res.send(data);
@@ -314,7 +342,7 @@ app.get("/post/value", (req, res) => {
  
 
 //Delete category 
-app.get("/categories/delete/:id", (req, res) => {
+app.get("/categories/delete/:id",ensureLogin, (req, res) => {
   deleteCategoryById(req.params.id)
   .then(() => {
     res.redirect("/categories");
@@ -325,7 +353,7 @@ app.get("/categories/delete/:id", (req, res) => {
 });
 
 //Delete post 
-app.get("/posts/delete/:id", (req, res) => {
+app.get("/posts/delete/:id",ensureLogin, (req, res) => {
   deletePostById(req.params.id)
   .then(() => {
     res.redirect("/posts");
@@ -385,12 +413,12 @@ app.get('/blog/:id', async (req, res) => {
 });
 
 //Add categories (get)
-app.get("/categories/add", (req, res) => {
+app.get("/categories/add", ensureLogin, (req, res) => {
   res.render("addCategory");
 });
 
 //Add categories (post)
-app.post("/categories/add", (req, res) => {
+app.post("/categories/add", ensureLogin, (req, res) => {
   let catObject = {};
   // Add it Category before redirecting to /categories
   catObject.category = req.body.category;
@@ -406,12 +434,85 @@ app.post("/categories/add", (req, res) => {
   }
 });
 
+//get- renders register view
+app.get("/register", (req, res) => {
+  res.render('register', {
+    layout: 'main'
+  })
+})
+
+//post - Create new user
+app.post("/register", (req, res) => {
+  authService.registerUser(req.body).then((success) => {
+    res.render('register', {
+      successMsg: "User Created",
+      layout: 'main'
+    }) 
+  }).catch((err) => {
+    res.render('register', {
+      errMsg: err,
+      layout: 'main'
+    })
+  })
+})
+
+//get- renders login view
+app.get("/login", (req, res) => {
+  res.render('login', {
+    layout: 'main'
+  })
+})
+
+//post login
+app.post("/login", (req, res) => {
+  req.body.userAgent = req.get('User-Agent')
+  authService.checkUser(req.body).then((user) => {
+    req.session.user = {
+      userName: user.userName,
+      email: user.email,
+      loginHistory: user.loginHistory
+    }
+
+    res.redirect("/posts")
+
+  }).catch((err) => {
+    res.render('login', {
+      errMsg: err,
+      layout: 'main'
+    })
+  })
+})
+
+
+
+//logout
+app.get("/logout", ensureLogin, (req, res) => {
+  req.session.reset()
+  res.redirect("/");
+})
+
+//User history - CHANGE
+// app.get("/loginHistory", ensureLogin, (req, res) => {
+//   res.render('loginHistory', {
+//     layout: 'main'
+//   })
+// })
+app.get("/userHistory", ensureLogin, (req, res) => {
+  res.render('userHistory', {
+    layout: 'main'
+  })
+})
+
 // setup http server to listen on HTTP_PORT
 blogService.initialize().then(() => {
-  app.listen(HTTP_PORT, onHttpStart);
+  blogData.initialize()
+  .then(authService.initialize)
+  .then(app.listen(HTTP_PORT, onHttpStart));
 })
 
 //404 requests
 app.use((req, res) => {
   res.status(404).render("404");
 });
+
+
